@@ -6,7 +6,7 @@ import org.neo4j.procedure.*;
 
 import java.util.stream.Stream;
 
-public class CreateRow {
+public class CreateInputRow {
 
     @Context
     public Log log;
@@ -14,15 +14,15 @@ public class CreateRow {
     @Context
     public GraphDatabaseService db;
 
-    @Procedure(name = "nn.createRow", mode = Mode.WRITE)
+    @Procedure(name = "nn.createInputRow", mode = Mode.WRITE)
     @Description("Creates a new Row node with the given ID and type 'inputsRow'.")
-    public Stream<CreateResult> createRow(@Name("id") String id) {
+    public Stream<CreateResult> createInputRow(@Name("id") String id) {
         try (Transaction tx = db.beginTx()) {
             // Exécuter la requête Cypher pour créer le nœud Row
             tx.execute("CREATE (n:Row { id: "+ id +", type: 'inputsRow' })");
             return Stream.of(new CreateResult("ok"));
         } catch (Exception e) {
-            log.error("Failed to create Row: " + e.getMessage());
+            log.error("Failed to create input Row: " + e.getMessage());
             return Stream.of(new CreateResult("ko"));
         }
     }

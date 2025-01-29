@@ -18,7 +18,7 @@ public class CreateNeuron {
     // Exemple de base à lire completer corriger
     // Pour utiliser call nn.createNeuron("123","0","input","sotfmax")
     @Procedure(name = "nn.createNeuron",mode = Mode.WRITE)
-    @Description("")
+    @Description("Create a Neuron to specified id, layer and type and activation function")
     public Stream<CreateResult> createNeuron(@Name("id") String id,
                                        @Name("layer") String layer,
                                        @Name("type") String type,
