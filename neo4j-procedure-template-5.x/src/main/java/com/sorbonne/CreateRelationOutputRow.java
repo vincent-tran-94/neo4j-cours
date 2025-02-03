@@ -7,7 +7,7 @@ import java.util.*;
 
 import java.util.stream.Stream;
 
-public class CreateRelationInputRow {
+public class CreateRelationOutputRow {
 
     @Context
     public Log log;
@@ -15,34 +15,35 @@ public class CreateRelationInputRow {
     @Context
     public GraphDatabaseService db;
 
-    @Procedure(name = "nn.createrelationinputrow", mode = Mode.WRITE)
-    @Description("Creates a CONTAINS relationship between a Row node (inputsRow) and a Neuron (input)")
-    public Stream<CreateResult> createRelationInputRow(
+    @Procedure(name = "nn.createrelationoutputrow", mode = Mode.WRITE)
+    @Description("Creates a CONTAINS relationship between a Row node (outputsRow) and a Neuron (output)")
+    public Stream<CreateResult> createRelationOutputRow(
             @Name("from_id") String from_id,
             @Name("to_id") String to_id,
-            @Name("inputfeatureid") String inputfeatureid,
+            @Name("outputfeatureid") String outputfeatureid,
             @Name("value") double value)
     {
         try (Transaction tx = db.beginTx()) {
             // Exécuter la requête Cypher pour créer la relation
-//            tx.execute("MATCH (n1:Row {id:"+ from_id +",type:'inputsRow'})" +
-//                    "MATCH (n2:Neuron {id:"+ to_id + ",type:'input'})" +
-//                    "CREATE (n1)-[:CONTAINS {{output:"+ value +",id:"+ inputfeatureid +"}]->(n2)");
-            String query = "MATCH (n1:Row {id: $from_id ,type:'inputsRow'}})" +
-                    "MATCH (n2:Neuron {id: $to_id ,type:'input'})" +
-                    "CREATE (n1)-[:CONTAINS {{output: $value, id: $inputfeatureid}]->(n2));";
+//            tx.execute("MATCH (n1:Row {id:"+ from_id +",type:'outputsRow'})" +
+//                    "MATCH (n2:Neuron {id:"+ to_id + ",type:'output'})" +
+//                    "CREATE (n1)-[:CONTAINS {{output:"+ value +",id:"+ outputfeatureid +"}]->(n2)");
+
+            String query = "MATCH (n1:Row {id: $from_id ,type:'outputsRow'}})" +
+                    "MATCH (n2:Neuron {id: $to_id ,type:'output'})" +
+                    "CREATE (n1)-[:CONTAINS {{output: $value, id: $outputfeatureid}]->(n2));";
 
             Map<String, Object> parameters = new HashMap<>();
             parameters.put("from_id", from_id);
             parameters.put("to_id", to_id);
             parameters.put("value", value);
-            parameters.put("inputfeatureid", inputfeatureid);
+            parameters.put("outputfeatureid", outputfeatureid);
             tx.execute(query, parameters);
             tx.commit();
 
             return Stream.of(new CreateResult("ok"));
         } catch (Exception e) {
-            log.error("Failed to create relationinputrow: " + e.getMessage());
+            log.error("Failed to create relationOutputrow: " + e.getMessage());
             return Stream.of(new CreateResult("ko"));
         }
     }

@@ -7,7 +7,7 @@ import java.util.*;
 
 import java.util.stream.Stream;
 
-public class CreateInputRow {
+public class CreateOutputRow {
 
     @Context
     public Log log;
@@ -15,15 +15,15 @@ public class CreateInputRow {
     @Context
     public GraphDatabaseService db;
 
-    @Procedure(name = "nn.createInputRow", mode = Mode.WRITE)
-    @Description("Creates a new Row node with the given ID and type 'inputsRow'.")
-    public Stream<CreateResult> createInputRow(@Name("id") String id) {
+    @Procedure(name = "nn.createOutputRow", mode = Mode.WRITE)
+    @Description("Creates a new Row node with the given ID and type 'OutputRow'.")
+    public Stream<CreateResult> createOutputRow(@Name("id") String id) {
         try (Transaction tx = db.beginTx()) {
             // Exécuter la requête Cypher pour créer le nœud Row
-            //tx.execute("CREATE (n:Row { id: "+ id +", type: 'inputsRow' })");
+            //tx.execute("CREATE (n:Row { id: "+ id +", type: 'outputsRow' })");
             String query = "CREATE (n:Row {" +
                     "id: $id," +
-                    "type: 'inputsRow'})";
+                    "type: 'outputsRow'})";
 
             Map<String, Object> parameters = new HashMap<>();
             parameters.put("id", id);
@@ -32,7 +32,7 @@ public class CreateInputRow {
 
             return Stream.of(new CreateResult("ok"));
         } catch (Exception e) {
-            log.error("Failed to create input Row: " + e.getMessage());
+            log.error("Failed to create output Row: " + e.getMessage());
             return Stream.of(new CreateResult("ko"));
         }
     }

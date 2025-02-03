@@ -3,6 +3,7 @@ package com.sorbonne;
 import org.neo4j.graphdb.*;
 import org.neo4j.logging.Log;
 import org.neo4j.procedure.*;
+import java.util.*;
 
 import java.util.stream.Stream;
 
@@ -23,9 +24,21 @@ public class CreateConnection {
 
         try (Transaction tx = db.beginTx()) {
             // Exécuter la requête Cypher pour créer la relation
-            tx.execute("MATCH (n1:Neuron {id:"+ from_id +"})" +
-                            "MATCH (n2:Neuron {id:"+ to_id + "})" +
-                            "CREATE (n1)-[:CONNECTED_TO {weight:"+ weight +"}]->(n2)");
+//            tx.execute("MATCH (n1:Neuron {id:"+ from_id +"})" +
+//                            "MATCH (n2:Neuron {id:"+ to_id + "})" +
+//                            "CREATE (n1)-[:CONNECTED_TO {weight:"+ weight +"}]->(n2)");
+
+            String query = "MATCH (n1:Neuron {id: $from_id })" +
+                    "MATCH (n2:Neuron {id: $to_id })" +
+                    "CREATE (n1)-[:CONNECTED_TO {weight: $weight }]->(n2)";
+
+            Map<String, Object> parameters = new HashMap<>();
+            parameters.put("from_id", from_id);
+            parameters.put("to_id", to_id);
+            parameters.put("weight", weight);
+            tx.execute(query, parameters);
+            tx.commit();
+
             return Stream.of(new CreateResult("ok"));
         } catch (Exception e) {
             log.error("Failed to create connection: " + e.getMessage());

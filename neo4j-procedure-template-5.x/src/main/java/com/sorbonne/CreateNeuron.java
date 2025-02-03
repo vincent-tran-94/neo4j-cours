@@ -5,6 +5,7 @@ import org.neo4j.logging.Log;
 import org.neo4j.procedure.*;
 
 import java.util.stream.Stream;
+import java.util.*;
 
 
 public class CreateNeuron {
@@ -25,29 +26,35 @@ public class CreateNeuron {
                                        @Name("activation_function") String activation_function
     ) {
         try (Transaction tx = db.beginTx()) {
+            String query = "CREATE (n:Neuron { " +
+                    "id: $id, " +
+                    "layer: $layer, " +
+                    "type: $type, " +
+                    "bias: 0.0, " +
+                    "output: null, " +
+                    "m_bias: 0.0, " +
+                    "v_bias: 0.0, " +
+                    "activation_function: $activation_function " +
+                    "})";
 
-          tx.execute("CREATE (n:Neuron {\n" +
-                    "id: " + id + ",\n" +
-                    "layer:" + layer + ",\n" +
-                    "type: " + type + ",\n" +
-                    "bias: 0.0,\n" +
-                    "output: null,\n" +
-                    "m_bias: 0.0,\n" +
-                    "v_bias: 0.0,\n" +
-                    "activation_function:" + activation_function + "\n" +
-                    "})");
+            Map<String, Object> parameters = new HashMap<>();
+            parameters.put("id", id);
+            parameters.put("layer", layer);
+            parameters.put("type", type);
+            parameters.put("activation_function", activation_function);
+
+            tx.execute(query, parameters);
+            tx.commit();
             return Stream.of(new CreateResult("ok"));
 
         } catch (Exception e) {
-
+            log.error("Failed to create Neuron: " + e.getMessage());
             return Stream.of(new CreateResult("ko"));
         }
     }
 
         public static class CreateResult {
-
             public final String result;
-
             public CreateResult(String result) {
                 this.result = result;
             }
