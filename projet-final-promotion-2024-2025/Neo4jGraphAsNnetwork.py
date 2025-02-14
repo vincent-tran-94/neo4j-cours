@@ -65,10 +65,9 @@ class NeuralNetworkManager:
                 # Create the neuron in the database with a unique id per row
                 # Exemple de base à lire completer corriger
                 tx.run("""
-                    call nn.createNeuron($id,$type,$layer,$activation_function)
+                call nn.createNeuron($id,$layer,$type,$activation_function)
                 """, id=f"{layer_index}-{neuron_index}", layer=layer_index, type=layer_type,
                        activation_function=activation_function)
-
                 '''tx.run("""
                     'CREATE (n:Neuron {
                         id: $id,
@@ -94,61 +93,76 @@ class NeuralNetworkManager:
                         math.sqrt(6) / math.sqrt(num_neurons_current + num_neurons_next)
                     )
                     tx.run("""
-                        MATCH (n1:Neuron {id: $from_id})
-                        MATCH (n2:Neuron {id: $to_id})
-                        CREATE (n1)-[:CONNECTED_TO {weight: $weight}]->(n2)
+                    CALL nn.createConnection($from_id, $to_id, $weight);
                     """, from_id=f"{layer_index}-{i}", to_id=f"{layer_index + 1}-{j}",
                            weight=weight)
+                    '''
+                    tx.run("""
+                    MATCH (n1:Neuron {id: $from_id})
+                    MATCH (n2:Neuron {id: $to_id})
+                    CREATE (n1)-[:CONNECTED_TO {weight: $weight}]->(n2)
+                """, from_id=f"{layer_index}-{i}", to_id=f"{layer_index + 1}-{j}",
+                       weight=weight)
+                    '''
+
         end_time = time.time()  # Record the end time
         duration = end_time - start_time  # Calculate the duration
         logging.info(f"Finished creating the network structure. Total time taken: {duration:.2f} seconds.")
+        print("PROCEDDURE createNeuron et createConnection TERMINE")
 
     @staticmethod
     def create_inputs_row_node(tx, network_structure, batch_size):
         for _index in range(batch_size):
             tx.run("""
-                CREATE (n:Row {
-                    id: $id,
-                    type: 'inputsRow'})
+                  CALL nn.createinputrow($id)
                  """, id=f"{_index}")
+            '''
+            x.run("""
+            CREATE (n:Row {
+                id: $id,
+                type: 'inputsRow'})
+             """, id=f"{_index}")
+            '''
         layer_index,num_neurons = 0,network_structure[0]
         for row_index in range(batch_size):
             for neuron_index in range(num_neurons):
                 property_name = f"X_{row_index}_{neuron_index}"
-                query = f"""
-                    MATCH (n1:Row {{id: $from_id,type:'inputsRow'}})
-                    MATCH (n2:Neuron {{id: $to_id,type:'input'}})
-                    CREATE (n1)-[:CONTAINS {{output: $value,id:$inputfeatureid}}]->(n2)
-                """
-
+                query = """CALL nn.createrelationinputrow($from_id,$to_id,$inputfeatureid,$value)"""
+                '''
+                MATCH (n1:Row {{id: $from_id,type:'inputsRow'}})
+                MATCH (n2:Neuron {{id: $to_id,type:'input'}})
+                CREATE (n1)-[:CONTAINS {{output: $value,id:$inputfeatureid}}]->(n2)
+                '''
                 tx.run(query, from_id=f"{row_index}",
                        to_id=f"{layer_index}-{neuron_index}",
                        inputfeatureid=f"{row_index}_{neuron_index}",
                        value=0)
+        print("PROCEDURE create_inputs_row_node TERMINE")
+    
     #network_structure[1:-1]
     @staticmethod
     def create_outputs_row_node(tx, network_structure, batch_size):
         for _index in range(batch_size):
             tx.run("""
-                   CREATE (n:Row {
-                       id: $id,
-                       type: 'outputsRow'})
+                   CALL nn.createoutputrow($id)
                     """, id=f"{_index}")
         layer_index, num_neurons = len(network_structure) - 1, network_structure[len(network_structure) - 1]
         for row_index in range(batch_size):
             for neuron_index in range(num_neurons):
                 property_name = f"Y_{row_index}_{neuron_index}"
                 query = f"""
-                       
-                       MATCH (n1:Neuron {{id: $from_id,type:'output'}})
-                       MATCH (n2:Row {{id: $to_id,type:'outputsRow'}})
-                       CREATE (n1)-[:CONTAINS {{output: $value,id:$outputbyrowid}}]->(n2)
+                       CALL nn.createrelationoutputrow($from_id,$to_id,$outputbyrowid,$value)
                    """
-
+                '''
+                MATCH (n1:Neuron {{id: $from_id,type:'output'}})
+                MATCH (n2:Row {{id: $to_id,type:'outputsRow'}})
+                CREATE (n1)-[:CONTAINS {{output: $value,id:$outputbyrowid}}]->(n2)
+                '''
                 tx.run(query, from_id=f"{layer_index}-{neuron_index}",
                        to_id=f"{row_index}", outputbyrowid=f"{row_index}_{neuron_index}",
                        value=0)
-
+                
+        print("PROCEDURE create_outputs_row_node TERMINE")
 
     @staticmethod
     def forward_pass(tx):
@@ -160,26 +174,27 @@ class NeuralNetworkManager:
             [r2:CONNECTED_TO]->
             (output:Neuron {type: 'output'})-[outputsValues_R:CONTAINS]->
             (row_for_outputs:Row {type:'outputsRow'})'''
-        tx.run("""
-        
+        tx.run("CALL nn.forwardPass()")
+        """
+
             MATCH (row_for_inputs:Row {type: 'inputsRow'})-[inputsValue_R:CONTAINS]->(input:Neuron {type: 'input'})
             MATCH (input)-[r1:CONNECTED_TO]->(hidden:Neuron {type: 'hidden'})
             MATCH (hidden)-[r2:CONNECTED_TO]->(output:Neuron {type: 'output'})
             MATCH (output)-[outputsValues_R:CONTAINS]->(row_for_outputs:Row {type: 'outputsRow'})
             WITH DISTINCT row_for_inputs,inputsValue_R, input,r1,hidden,r2,output ,outputsValues_R,row_for_outputs,
-            
+
             SUM(COALESCE(outputsValues_R.output, 0) * r1.weight) AS weighted_sum
             SKIP 0 LIMIT 1000
-            SET hidden.output = CASE 
+            SET hidden.output = CASE
                 WHEN hidden.activation_function = 'relu' THEN CASE WHEN (weighted_sum + hidden.bias) > 0 THEN (weighted_sum + hidden.bias) ELSE 0 END
                 WHEN hidden.activation_function = 'sigmoid' THEN 1 / (1 + EXP(-(weighted_sum + hidden.bias)))
                 WHEN hidden.activation_function = 'tanh' THEN (EXP(2 * (weighted_sum + hidden.bias)) - 1) / (EXP(2 * (weighted_sum + hidden.bias)) + 1)
                 ELSE weighted_sum + hidden.bias
             END
-			
+
 	        WITH row_for_inputs,inputsValue_R, input,r1,hidden,r2,output ,outputsValues_R,row_for_outputs,
 	        SUM(COALESCE(hidden.output, 0) * r2.weight) AS weighted_sum
-            SET outputsValues_R.output = CASE 
+            SET outputsValues_R.output = CASE
                 WHEN output.activation_function = 'softmax' THEN weighted_sum  //Temporary value; softmax applied later
                 WHEN output.activation_function = 'sigmoid' THEN 1 / (1 + EXP(-(weighted_sum + output.bias)))
                 WHEN output.activation_function = 'tanh' THEN (EXP(2 * (weighted_sum + output.bias)) - 1) / (EXP(2 * (weighted_sum + output.bias)) + 1)
@@ -189,20 +204,19 @@ class NeuralNetworkManager:
                WITH output_neurons, outputsValues_Rs,
                     [n IN outputsValues_Rs | exp(COALESCE(n.output, 0))] AS exp_outputs,
                     [n IN output_neurons | n.activation_function] AS activation_functions
-               WITH output_neurons, outputsValues_Rs, exp_outputs, activation_functions, 
+               WITH output_neurons, outputsValues_Rs, exp_outputs, activation_functions,
                     REDUCE(sum = 0.0, x IN exp_outputs | sum + x) AS sum_exp_outputs
                UNWIND RANGE(0, SIZE(output_neurons) - 1) AS i
                UNWIND RANGE(0, SIZE(outputsValues_Rs) - 1) AS j
-               WITH output_neurons[i] AS neuron,outputsValues_Rs[j] AS outputRow, exp_outputs[i] AS exp_output, 
+               WITH output_neurons[i] AS neuron,outputsValues_Rs[j] AS outputRow, exp_outputs[i] AS exp_output,
                     activation_functions[i] AS activation_function, sum_exp_outputs
-               WITH neuron,outputRow, 
-                    CASE 
+               WITH neuron,outputRow,
+                    CASE
                         WHEN activation_function = 'softmax' THEN exp_output / sum_exp_outputs
                         ELSE outputRow.output
                     END AS adjusted_output
                SET outputRow.output = adjusted_output
-        """)
-
+        """
 
 
 
@@ -213,7 +227,7 @@ class NeuralNetworkManager:
             MATCH (output:Neuron {type: 'output'})<-[r:CONNECTED_TO]-(prev:Neuron)
             MATCH (output)-[outputsValues_R:CONTAINS]->(row_for_outputs:Row {type: 'outputsRow'})
             WITH DISTINCT output,r,prev,outputsValues_R,row_for_outputs,
-                 CASE 
+                 CASE
                      WHEN output.activation_function = 'softmax' THEN outputsValues_R.output - outputsValues_R.expected_output
                      WHEN output.activation_function = 'sigmoid' THEN (outputsValues_R.output - outputsValues_R.expected_output) * outputsValues_R.output * (1 - outputsValues_R.output)
                      WHEN output.activation_function = 'tanh' THEN (outputsValues_R.output - outputsValues_R.expected_output) * (1 - outputsValues_R.output^2)
@@ -223,11 +237,11 @@ class NeuralNetworkManager:
             MATCH (prev)-[r:CONNECTED_TO]->(output)
             SET r.m = $beta1 * COALESCE(r.m, 0) + (1 - $beta1) * gradient * COALESCE(prev.output, 0)
             SET r.v = $beta2 * COALESCE(r.v, 0) + (1 - $beta2) * (gradient * COALESCE(prev.output, 0))^2
-            SET r.weight = r.weight - $learning_rate * (r.m / (1 - ($beta1 ^ t))) / 
+            SET r.weight = r.weight - $learning_rate * (r.m / (1 - ($beta1 ^ t))) /
                            (SQRT(r.v / (1 - ($beta2 ^ t))) + $epsilon)
             SET output.m_bias = $beta1 * COALESCE(output.m_bias, 0) + (1 - $beta1) * gradient
             SET output.v_bias = $beta2 * COALESCE(output.v_bias, 0) + (1 - $beta2) * (gradient^2)
-            SET output.bias = output.bias - $learning_rate * (output.m_bias / (1 - ($beta1 ^ t))) / 
+            SET output.bias = output.bias - $learning_rate * (output.m_bias / (1 - ($beta1 ^ t))) /
                          (SQRT(output.v_bias / (1 - ($beta2 ^ t))) + $epsilon)
             SET output.gradient = gradient
         """, learning_rate=learning_rate, beta1=beta1, beta2=beta2, epsilon=epsilon, t=t)
@@ -239,7 +253,7 @@ class NeuralNetworkManager:
             MATCH (n)-[r:CONNECTED_TO]->(next)
             WITH n, SUM(next.gradient * COALESCE(r.weight, 0)) AS raw_gradient, t
             WITH n,
-                 CASE 
+                 CASE
                      WHEN n.activation_function = 'relu' THEN CASE WHEN n.output > 0 THEN raw_gradient ELSE 0 END
                      WHEN n.activation_function = 'sigmoid' THEN raw_gradient * n.output * (1 - n.output)
                      WHEN n.activation_function = 'tanh' THEN raw_gradient * (1 - n.output^2)
@@ -248,11 +262,11 @@ class NeuralNetworkManager:
             MATCH (prev:Neuron)-[r_prev:CONNECTED_TO]->(n)
             SET r_prev.m = $beta1 * COALESCE(r_prev.m, 0) + (1 - $beta1) * gradient * COALESCE(prev.output, 0)
             SET r_prev.v = $beta2 * COALESCE(r_prev.v, 0) + (1 - $beta2) * (gradient * COALESCE(prev.output, 0))^2
-            SET r_prev.weight = r_prev.weight - $learning_rate * (r_prev.m / (1 - ($beta1 ^ t))) / 
+            SET r_prev.weight = r_prev.weight - $learning_rate * (r_prev.m / (1 - ($beta1 ^ t))) /
                                 (SQRT(r_prev.v / (1 - ($beta2 ^ t))) + $epsilon)
             SET n.m_bias = $beta1 * COALESCE(n.m_bias, 0) + (1 - $beta1) * gradient
             SET n.v_bias = $beta2 * COALESCE(n.v_bias, 0) + (1 - $beta2) * (gradient^2)
-            SET n.bias = n.bias - $learning_rate * (n.m_bias / (1 - ($beta1 ^ t))) / 
+            SET n.bias = n.bias - $learning_rate * (n.m_bias / (1 - ($beta1 ^ t))) /
                          (SQRT(n.v_bias / (1 - ($beta2 ^ t))) + $epsilon)
             SET n.gradient = gradient
         """, learning_rate=learning_rate, beta1=beta1, beta2=beta2, epsilon=epsilon, t=t)
@@ -304,10 +318,10 @@ class NeuralNetworkManager:
     def constrain_weights(tx):
         tx.run("""
                 MATCH ()-[r:CONNECTED_TO]->()
-                SET r.weight = CASE 
-                    WHEN r.weight > 1.0 THEN 1.0 
-                    WHEN r.weight < -1.0 THEN -1.0 
-                    ELSE r.weight 
+                SET r.weight = CASE
+                    WHEN r.weight > 1.0 THEN 1.0
+                    WHEN r.weight < -1.0 THEN -1.0
+                    ELSE r.weight
                 END
             """)
 
@@ -622,7 +636,7 @@ if __name__ == "__main__":
     # Initialize database manager and neural network manager
     uri = "bolt://localhost:7687"
     username = "neo4j"
-    password = ""
+    password = "#%%Azcaop94a"
     database = "neuralnetwork"
 
     db_manager = Neo4jDatabaseManager(uri, username, password, database)
@@ -645,12 +659,13 @@ if __name__ == "__main__":
 
         # Generate 1000 test cases
         file_path = Path("test_cases.json")
-        if not file_path.exists():
-            #_data = generate_test_cases(1000, len(network_structure)-1)
-            test_cases = generate_test_cases_from_csv(csv_file_path, input_columns, output_columns, len(network_structure)-1)
-            print(test_cases[0])
+        # if not file_path.exists():
+        #     #_data = generate_test_cases(1000, len(network_structure)-1)
+        #     test_cases = generate_test_cases_from_csv(csv_file_path, input_columns, output_columns, len(network_structure)-1)
+        #     print(test_cases[0])
 
-        with open("test_cases.json", "r") as json_file:
+        with open("D:/Work/Sorbonne/neo4J-cours/Projet_Neo4j/neo4j-cours/projet-final-promotion-2024-2025/test_cases.json", "r") as json_file:
+            
             test_cases = json.load(json_file)
         train_data, test_data, val_data = split_data(test_cases)
         # Step 1: Initialize
