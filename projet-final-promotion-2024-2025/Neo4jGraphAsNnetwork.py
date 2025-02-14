@@ -108,7 +108,7 @@ class NeuralNetworkManager:
         end_time = time.time()  # Record the end time
         duration = end_time - start_time  # Calculate the duration
         logging.info(f"Finished creating the network structure. Total time taken: {duration:.2f} seconds.")
-        print("PROCEDDURE createNeuron et createConnection TERMINE")
+        print("PROCEDURE createNeuron et createConnection TERMINE")
 
     @staticmethod
     def create_inputs_row_node(tx, network_structure, batch_size):
